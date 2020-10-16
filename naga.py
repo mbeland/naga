@@ -103,13 +103,18 @@ def apt_update(conn):
 
 def apt_upgrade(conn):
     '''apt-get -y upgrade'''
-    conn.sudo('apt-get -y upgrade')
+    conn.sudo('apt-get -y upgrade', hide=True)
+
+
+def apt_autoremove(conn):
+    '''apt-get -y autoremove'''
+    conn.sudo('apt-get -y autoremove')
 
 
 def main_function(host, command):
     config = get_sudo()
     conn = new_host(host, config)
-    apt_upgrade(conn)
+    apt_autoremove(conn)
 
 
 def main(argv):
