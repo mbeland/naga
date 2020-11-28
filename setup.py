@@ -3,10 +3,10 @@ import setuptools
 
 
 setuptools.setup(
-    name="Project Name",
-    version="0.0.1",
+    name="Naga",
+    version="0.5.0",
     author="Matt Beland",
     author_email="matt@rearviewmirror.org",
-    description="Stuff that does things",
+    description="SSH-based remote system management tool",
     packages=setuptools.find_packages(),
 )

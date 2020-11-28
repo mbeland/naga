@@ -1,32 +1,24 @@
-# py_skel
+# Naga
 
-I decided I should stop recreating the wheel every time I want to jump in to a new Python project, so I made this.
-
-It's not fancy or complicated - couple of useful module files I use a lot, a template file so I don't have to stare at a blank screen to get started throwing code at the wall, that's about it. Hey, it should have a template README.md too, shouldn't it...
+Naga is a remote systems management tool of sorts; it's slowly aggregated together over the years in fits and starts. It depends on the [Fabric](http://www.fabfile.org/) Python 3.x high-level module. It mostly does not use the host-level command and configuration options, however, because... it doesn't.
 
 ## Installation
 
-Checkout the latest version of this repo, then copy the non-.git files to a new repo folder and set up a virtual environment. 
+Checkout the latest version of this repo into a Python 3 virtual environment. Use the included requirements.txt file to download and install the required modules with pip. (Below assumes a bash/zsh shell on Linux/MacOS; installation on Windows is similar but commands will differ slightly.)
 
 ```bash
-git clone https://github.com/mbeland/py_skel.git
-python3 -m venv new_project
-cp -r py_skel/.gitignore py_skel/*
+~> git clone https://github.com/mbeland/naga.git
+~> python3 -m venv naga
+~> cd naga
+~/naga> source bin/activate
+(naga) ~/naga> pip install -r requirements.txt
 ```
 
 ## Usage
 
-The template provides a simple PEP8-compliant shell for creating new code, including a basic framework for command line arguments and standardized format usage help. The multitool folder contains simple modules I reuse constantly, and a init file so the functions are available directly through the multitool package name. As I clean up and standardize more of my toolkit they go in there; I won't let myself use them until they're there, which hopefully will put pressure on me to make that happen. Currently those files are 
+So... at the moment, the main interface is to run the file "naga.py" and specify either a hostname or "all". There's an optional parameter to specify a SQLite3 database file as well which contains the host definitions. When executed, the script will run the appropriate functions (all contained in the admin.py file) against the specified host or against all defined hosts in the database.
 
-  * [multitool/fileparse.py](https://github.com/mbeland/py_skel/blob/release/multitool/fileparse.py) - Simple module for parsing data files - essentially an abstraction layer of the full csv module for my own common preferences (Modified from David Beazley's excellent [Practical Python](https://dabeaz-course.github.io/practical-python/) course)
-
-  * [multitool/tableformat.py](https://github.com/mbeland/py_skel/blob/release/multitool/tableformat.py) - Simple formatting module for outputting table data in a variety of formats (Modified from David Beazley's excellent [Practical Python](https://dabeaz-course.github.io/practical-python/) course)
-
-  * [multitool/timethis.py](https://github.com/mbeland/py_skel/blob/release/multitool/timethis.py) - Another valuable item snagged from David Beazley's excellent [Practical Python](https://dabeaz-course.github.io/practical-python/) course, a simple wrapper function useful for seeing how long functions take to execute
-
-  * [multitool/log.py](https://github.com/mbeland/py_skel/blob/release/multitool/log.py) - a class definition for the standard logging module, making one-line consistent creation of error logs straighforward.
-  
-  * [multitool/sshclient.py](https://github.com/mbeland/py_skel/blob/release/multitool/sshclient.py) - a Paramiko wrapper to standardize the use of SSH for programmatic functions. Requires installation of Paramiko and all optional packages; recommend using ```python -m pip install paramiko[all]```
+There are functions in the naga.py file to add/delete/modify host records, specify new app functions, etc. However at the moment these are accessed through importing the naga.py file to the interactive Python interpreter. There's a plan for changing that, but it's still just a plan.
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.

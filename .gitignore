@@ -139,3 +139,6 @@ dmypy.json
 # Multitool module folder
 multitool
 .vscode/settings.json
+.vscode/launch.json
+
+hosts.db
