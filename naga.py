@@ -208,13 +208,20 @@ def db_read_host(db_conn, host_id, config):
 
 
 def get_sudo():
-    '''Ask user for sudo password, return as fabric config object'''
+    '''
+    Create Config object with sudo password
+    :return: Fabric/Config object
+    '''
     return Config(overrides={'sudo': {'password':
                              getpass("What's your sudo password? ")}})
 
 
 def print_out(list):
-    '''Output list of strings to stdout'''
+    '''
+    Output list of strings to stdout
+    :param list: List of formatted strings
+    :return: Output function, does not return
+    '''
     for line in list:
         print(line)
 
