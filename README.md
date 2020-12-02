@@ -20,9 +20,9 @@ The primary interface is still somewhat limited, consisting of running the naga.
 
 | Parameter | Use | Example |
 |-----------|-----|---------|
-| <hostname> | required, specifies target | hostname in system db, or "all". No default value |
+| \<hostname\> | required, specifies target | hostname in system db, or "all". No default value |
 | -db, --database | specify SQLite3 db file | -db host.db (default value) |
-| -cmd, --command | name of admin.py function to execute, and required variable | apt_install <packagename> |
+| -cmd, --command | name of admin.py function to execute, and required variable | apt_install \<packagename\> |
 
 There are functions in the naga.py file to add/delete/modify host records, specify new app functions, etc. However at the moment these are accessed through importing the naga.py file to the interactive Python interpreter. There's a plan for changing that, but it's still just a plan.
 
