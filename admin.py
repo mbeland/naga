@@ -21,6 +21,7 @@ def apt_all(host):
     out.append(f'{host.name}: {apt_update(host.conn)}')
     out.append(f'{host.name}: {apt_upgrade(host.conn)}')
     out.append(f'{host.name} autoremove: {apt_autoremove(host.conn)}')
+    out.extend(apt_checkrestart(host.conn))
     return out
 
 
@@ -34,12 +35,79 @@ def apt_autoremove(conn):
     try:
         out.append(conn.sudo('apt-get -y autoremove',
                    hide=True).stdout.splitlines()[-1])
-        out.append(conn.run(''))
     except exceptions.UnexpectedExit as e:
         e = parse_e(e)
         return f'failed: {e}'
     except ssh_exception.NoValidConnectionsError as e:
         return(f'connection failed: {e}')
+
+
+def apt_checkrestart(conn):
+    '''
+    Test to determine host needs for service restarts or reboot
+    :param conn: Host connection object
+    :return: list of formatted strings
+    '''
+    out = []
+    reboot_comm = 'if test -f /var/run/reboot-required; then cat '\
+                  '/var/run/reboot-required; fi'
+    try:
+        outlines = conn.sudo('checkrestart', hide=True).stdout.splitlines()
+        out.append(outlines[0])
+        out.append(conn.run(reboot_comm, hide=True).stdout.strip())
+    except exceptions.UnexpectedExit as e:
+        e = parse_e(e)
+        out.append(f'failed: {e}')
+    except ssh_exception.NoValidConnectionsError as e:
+        out.append(f'connection failed: {e}')
+    return out
+
+
+def apt_install(host, package):
+    '''
+    Install specified package and dependencies with apt-get
+    :param host: Host object
+    :param package: package to install
+    :return: list of formatted strings
+    '''
+    out = [f'{host.name}: {package} install:']
+    command = 'DEBIAN_FRONTEND=noninteractive apt-get -y install ' + package
+    try:
+        output = host.conn.sudo(command, hide=True).stdout.splitlines()
+        for line in output:
+            if re.search('^[0-9]', line) or re.search('^Fetched', line):
+                out.append(line)
+        out.extend(apt_checkrestart(host.conn))
+    except exceptions.UnexpectedExit as e:
+        e = parse_e(e)
+        out.append(f'failed: {e}')
+    except ssh_exception.NoValidConnectionsError as e:
+        out.append(f'connection failed: {e}')
+    return out
+
+
+def apt_remove(host, package):
+    '''
+    Remove specified package and dependencies with apt-get
+    :param host: Host object
+    :param package: package to install
+    :return: list of formatted strings
+    '''
+    out = [f'{host.name}: {package} removal:']
+    command = 'DEBIAN_FRONTEND=noninteractive apt-get -y remove ' + package
+    try:
+        output = host.conn.sudo(command, hide=True).stdout.splitlines()
+        for line in output:
+            if re.search('^[0-9]', line) or re.search('^Removing', line):
+                out.append(line)
+        apt_autoremove(host.conn)
+        out.extend(apt_checkrestart(host.conn))
+    except exceptions.UnexpectedExit as e:
+        e = parse_e(e)
+        out.append(f'failed: {e}')
+    except ssh_exception.NoValidConnectionsError as e:
+        out.append(f'connection failed: {e}')
+    return out
 
 
 def apt_update(conn):

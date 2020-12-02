@@ -223,7 +223,8 @@ def print_out(list):
     :return: Output function, does not return
     '''
     for line in list:
-        print(line)
+        if len(line) > 0:
+            print(line)
 
 
 def run_host(db_conn, host, config=None):
@@ -247,6 +248,8 @@ def main(argv):
     parser.add_argument("host", help="Friendly name of system to target")
     parser.add_argument("-db", "--database", type=str,
                         help="SQLite3 db file to use [default=hosts.db")
+    parser.add_argument("-cmd", "--command", nargs=2,
+                        help="Function to execute on listed host(s)")
     args = parser.parse_args()
     if args.database is None:
         args.database = 'hosts.db'
@@ -254,10 +257,17 @@ def main(argv):
     db = db_conn(args.database)
     if args.host == "all":
         hosts = db_fetch_hostlist(db)
-        for host in hosts:
-            run_host(db, host, config)
     else:
-        run_host(db, args.host, config)
+        hosts = [args.host]
+    for host in hosts:
+        if args.command:
+            host_id = db_fetch_hostid(db, host)
+            host = db_read_host(db, host_id, config)
+            host_func = getattr(admin, args.command[0],
+                                admin.version_check)
+            print_out(host_func(host, args.command[1]))
+        else:
+            run_host(db, host, config)
 
 
 if __name__ == '__main__':

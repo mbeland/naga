@@ -16,7 +16,13 @@ Checkout the latest version of this repo into a Python 3 virtual environment. Us
 
 ## Usage
 
-So... at the moment, the main interface is to run the file "naga.py" and specify either a hostname or "all". There's an optional parameter to specify a SQLite3 database file as well which contains the host definitions. When executed, the script will run the appropriate functions (all contained in the admin.py file) against the specified host or against all defined hosts in the database.
+The primary interface is still somewhat limited, consisting of running the naga.py program with the following parameters -
+
+| Parameter | Use | Example |
+|-----------|-----|---------|
+| <hostname> | required, specifies target | hostname in system db, or "all". No default value |
+| -db, --database | specify SQLite3 db file | -db host.db (default value) |
+| -cmd, --command | name of admin.py function to execute, and required variable | apt_install <packagename> |
 
 There are functions in the naga.py file to add/delete/modify host records, specify new app functions, etc. However at the moment these are accessed through importing the naga.py file to the interactive Python interpreter. There's a plan for changing that, but it's still just a plan.
 
