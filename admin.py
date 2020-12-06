@@ -21,8 +21,9 @@ def apt_all(host):
     out.append(f'{host.name}: {apt_update(host.conn)}')
     out.append(f'{host.name}: {apt_upgrade(host.conn)}')
     out.append(f'{host.name} autoremove: {apt_autoremove(host.conn)}')
-    out.extend(apt_checkrestart(host.conn))
-    return out
+    check, flag = apt_checkrestart(host.conn)
+    out.extend(check)
+    return out, flag
 
 
 def apt_autoremove(conn):
@@ -48,19 +49,23 @@ def apt_checkrestart(conn):
     :param conn: Host connection object
     :return: list of formatted strings
     '''
+    flag = False
     out = []
     reboot_comm = 'if test -f /var/run/reboot-required; then cat '\
                   '/var/run/reboot-required; fi'
     try:
         outlines = conn.sudo('checkrestart', hide=True).stdout.splitlines()
         out.append(outlines[0])
-        out.append(conn.run(reboot_comm, hide=True).stdout.strip())
+        reboot = conn.run(reboot_comm, hide=True).stdout.strip()
+        if len(reboot) > 0:
+            out.append(reboot)
+            flag = True
     except exceptions.UnexpectedExit as e:
         e = parse_e(e)
         out.append(f'failed: {e}')
     except ssh_exception.NoValidConnectionsError as e:
         out.append(f'connection failed: {e}')
-    return out
+    return out, flag
 
 
 def apt_install(host, package):
@@ -118,11 +123,15 @@ def apt_update(conn):
     '''
     try:
         conn.sudo('apt-get update', hide=True)
+        outlines = conn.run('apt-get --just-print upgrade',
+                            hide=True).stdout.splitlines()
+        for line in outlines:
+            if re.search('^[0-9]', line):
+                out = line.strip()
     except (exceptions.UnexpectedExit,
             ssh_exception.NoValidConnectionsError) as e:
         return f'failed: {e}'
-    return conn.run('apt-get --just-print upgrade | grep ^[0-9]',
-                    hide=True).stdout.strip()
+    return out
 
 
 def apt_upgrade(conn):
@@ -158,7 +167,7 @@ def brew_all(host):
             out.append(f'{host.name}: {brew_upgrade(host.conn)}')
     except ssh_exception.NoValidConnectionsError as e:
         out.append(f'connection failed: {e}')
-    return out
+    return out, False
 
 
 def brew_update(conn):
@@ -295,6 +304,26 @@ def pihole_up(host):
         out.append(f'{host.name}: pihole update failed: {e}')
     except ssh_exception.NoValidConnectionsError as e:
         out.append(f'connection failed: {e}')
+    return out
+
+
+def reboot(host, time='+1'):
+    '''
+    Reboots specified host
+    :param host: Host object
+    :param time: Time in HH:MM format
+    :return: Formatted string
+    '''
+    out = []
+    try:
+        out = f'{host.name} '
+        out2 = host.conn.sudo(f'/sbin/shutdown -r {time}',
+                              hide=True).stdout.strip()
+        out = out + out2
+    except exceptions.UnexpectedExit as e:
+        out.append(f'{host.name}: pihole update failed: {e}')
+    except ssh_exception.NoValidConnectionsError as e:
+        out.append(f'{host.name}: connection failed: {e}')
     return out
 
 

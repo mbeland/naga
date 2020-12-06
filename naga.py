@@ -72,9 +72,9 @@ def db_add_host(db_conn, host):
     :param host: Host instance
     :return: host id
     '''
-    host_sql = '''INSERT INTO hosts(name,updater,git) VALUES(?,?,?)'''
+    host_sql = '''INSERT INTO hosts(name,updater) VALUES(?,?)'''
     c = db_conn.cursor()
-    host_tuple = (host.name, host.updater, host.git)
+    host_tuple = (host.name, host.updater)
     c.execute(host_sql, host_tuple)
     db_conn.commit()
     host_id = c.lastrowid
@@ -223,8 +223,7 @@ def print_out(list):
     :return: Output function, does not return
     '''
     for line in list:
-        if len(line) > 0:
-            print(line)
+        print(line)
 
 
 def run_host(db_conn, host, config=None):
@@ -237,10 +236,12 @@ def run_host(db_conn, host, config=None):
     host_id = db_fetch_hostid(db_conn, host)
     host = db_read_host(db_conn, host_id, config)
     host_func = getattr(admin, host.updater, admin.version_check)
-    print_out(host_func(host))
+    host_out, flag = host_func(host)
+    print_out(host_out)
     for app in host.appList:
         app_func = getattr(admin, app, admin.version_check)
         print_out(app_func(host))
+    return flag
 
 
 def main(argv):
@@ -251,6 +252,7 @@ def main(argv):
     parser.add_argument("-cmd", "--command", nargs=2,
                         help="Function to execute on listed host(s)")
     args = parser.parse_args()
+    reboot_list = []
     if args.database is None:
         args.database = 'hosts.db'
     config = get_sudo()
@@ -266,8 +268,14 @@ def main(argv):
             host_func = getattr(admin, args.command[0],
                                 admin.version_check)
             print_out(host_func(host, args.command[1]))
+            flag = False
         else:
-            run_host(db, host, config)
+            flag = run_host(db, host, config)
+        if flag is True:
+            reboot_list.append(f'\t{host}')
+    if len(reboot_list) > 0:
+        print(f'\n\nThe following hosts need to be rebooted:')
+        print_out(reboot_list)
 
 
 if __name__ == '__main__':
