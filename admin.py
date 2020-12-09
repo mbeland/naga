@@ -21,7 +21,7 @@ def apt_all(host):
     out.append(f'{host.name}: {apt_update(host.conn)}')
     out.append(f'{host.name}: {apt_upgrade(host.conn)}')
     out.append(f'{host.name} autoremove: {apt_autoremove(host.conn)}')
-    check, flag = apt_checkrestart(host.conn)
+    check, flag = apt_checkrestart(host)
     out.extend(check)
     return out, flag
 
@@ -43,22 +43,23 @@ def apt_autoremove(conn):
         return(f'connection failed: {e}')
 
 
-def apt_checkrestart(conn):
+def apt_checkrestart(host):
     '''
     Test to determine host needs for service restarts or reboot
-    :param conn: Host connection object
+    :param host: Host object
     :return: list of formatted strings
     '''
     flag = False
+    filename = '/usr/sbin/checkrestart'
     out = []
-    reboot_comm = 'if test -f /var/run/reboot-required; then cat '\
-                  '/var/run/reboot-required; fi'
+    reboot_file = '/var/run/reboot-required'
     try:
-        outlines = conn.sudo('checkrestart', hide=True).stdout.splitlines()
-        out.append(outlines[0])
-        reboot = conn.run(reboot_comm, hide=True).stdout.strip()
-        if len(reboot) > 0:
-            out.append(reboot)
+        if not file_test(host.conn, filename):
+            apt_install(host, 'debian-goodies')
+        output = host.conn.sudo('checkrestart', hide=True).stdout.splitlines()
+        out.append(f'{host.name}: {output[0]}')
+        if file_test(host.conn, reboot_file):
+            out.append('*** System restart required ***')
             flag = True
     except exceptions.UnexpectedExit as e:
         e = parse_e(e)
@@ -82,7 +83,6 @@ def apt_install(host, package):
         for line in output:
             if re.search('^[0-9]', line) or re.search('^Fetched', line):
                 out.append(line)
-        out.extend(apt_checkrestart(host.conn))
     except exceptions.UnexpectedExit as e:
         e = parse_e(e)
         out.append(f'failed: {e}')
@@ -203,6 +203,17 @@ def brew_upgrade(conn):
         return f'brew upgrade failed: {e}'
     except ssh_exception.NoValidConnectionsError as e:
         return(f'connection failed: {e}')
+
+
+def file_test(conn, filename):
+    '''
+    Test for existence of the file on remote host
+    :param conn: Host connection object
+    :param filename: path of file to test as string
+    :return: Boolean value
+    '''
+    command = f'if test -f "{filename}"; then echo "True"; fi'
+    return bool(conn.run(command, hide=True).stdout.strip())
 
 
 def file_flag_check(conn, directory, flag):
