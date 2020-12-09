@@ -307,23 +307,28 @@ def pihole_up(host):
     return out
 
 
-def reboot(host, time='+1'):
+def reboot(host, time='+1', halt=False):
     '''
     Reboots specified host
     :param host: Host object
-    :param time: Time in HH:MM format
+    :param time: Time in HH:MM format or integer minutes
+    :param halt: Power off instead of reboot
     :return: Formatted string
     '''
     out = []
+    if halt is True:
+        flag = '-h'
+    else:
+        flag = '-r'
     try:
         out = f'{host.name} '
-        out2 = host.conn.sudo(f'/sbin/shutdown -r {time}',
-                              hide=True).stdout.strip()
+        out2 = host.conn.sudo(f'/sbin/shutdown {flag} {time}',
+                              hide=True).stderr.strip().split(',')[0]
         out = out + out2
     except exceptions.UnexpectedExit as e:
-        out.append(f'{host.name}: pihole update failed: {e}')
+        out += (f' command failure: {e}')
     except ssh_exception.NoValidConnectionsError as e:
-        out.append(f'{host.name}: connection failed: {e}')
+        out += (f' connection failed: {e}')
     return out
 
 

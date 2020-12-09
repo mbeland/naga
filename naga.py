@@ -20,11 +20,13 @@ class Host:
     :param appList: list of function names to execute during updates
     :param configuration: Configuration object for Connection class
     '''
-    def __init__(self, name, updater, appList, configuration):
+    def __init__(self, name, updater, appList, configuration, children):
         self.name = name
         self.updater = updater
         self.appList = appList
+        self.configuration = configuration
         self.conn = Connection(name, config=configuration)
+        self.children = children
 
 
 def add_host(db_conn, config=None):
@@ -46,9 +48,14 @@ def add_host(db_conn, config=None):
         if appList[-1] == '':
             appList.remove('')
             flag = False
-    host = Host(name, updater, appList, config)
-    if re.search('^Y', (input(f'Save {host.name}? [y/N]: ')).capitalize()):
-        print(f'{host.name} added as host id {db_add_host(db_conn, host)}')
+    child = input("If this is a VM, what system hosts it? [Enter for None]"
+                  ).strip.lower()
+    host = Host(name, updater, appList, config, [])
+    new_id = db_add_host(db_conn, host)
+    if child != '':
+        host_id = db_fetch_hostid(db_conn, child)
+        db_add_child(db_conn, host_id, new_id)
+    print(f'{host.name} added as host id {new_id}')
     return host
 
 
@@ -65,6 +72,27 @@ def db_add_app(db_conn, host_id, app):
     db_conn.commit()
 
 
+def db_add_child(db_conn, parent_id, child_id):
+    '''
+    Add child entry to database host record
+    :param db_conn: DB connection object
+    :param parent_id: host_id record for parent machine
+    :param child_id: host_id record for child machine
+    :return: updated host.children list for oarent_id
+    '''
+    update_sql = '''UPDATE hosts SET children = ? WHERE id = ?'''
+    c = db_conn.cursor()
+    children = db_fetch_children(db_conn, parent_id)
+    if children[0] == '0':
+        c.execute(update_sql, (child_id, parent_id))
+    else:
+        children.append(child_id)
+        children = ",".join(children)
+        c.execute(update_sql, (children, parent_id))
+    db_conn.commit()
+    return db_fetch_children(db_conn, parent_id)
+
+
 def db_add_host(db_conn, host):
     '''
     Write Host object info to db
@@ -72,9 +100,13 @@ def db_add_host(db_conn, host):
     :param host: Host instance
     :return: host id
     '''
-    host_sql = '''INSERT INTO hosts(name,updater) VALUES(?,?)'''
+    host_sql = '''INSERT INTO hosts(name,updater,children) VALUES(?,?,?)'''
     c = db_conn.cursor()
-    host_tuple = (host.name, host.updater)
+    if host.children == []:
+        children = '0'
+    else:
+        children = host.children
+    host_tuple = (host.name, host.updater, children)
     c.execute(host_sql, host_tuple)
     db_conn.commit()
     host_id = c.lastrowid
@@ -107,7 +139,8 @@ def db_create_db(db_conn):
     CREATE TABLE IF NOT EXISTS hosts (
         id integer PRIMARY KEY,
         name text UNIQUE NOT NULL,
-        updater text NOT NULL
+        updater text NOT NULL,
+        children text
     );
     '''
     apps_table_sql = '''
@@ -135,6 +168,40 @@ def db_create_table(db_conn, create_table_sql):
         print(e)
 
 
+def db_delete_app(db_conn, host, app_name):
+    '''
+    Remove app from db host record and Host object
+    :param db_conn: DB connection object
+    :param host_id: Host object
+    :param app_name: App function to remove
+    :return: host object
+    '''
+    sql = '''DELETE FROM apps WHERE id = ? AND function = ?'''
+    host_id = db_fetch_hostid(db_conn, host.name)
+    c = db_conn.cursor()
+    c.execute(sql, (host_id, app_name))
+    c.commit()
+    return db_read_host(db_conn, host_id, host.configuration)
+
+
+def db_delete_child(db_conn, parent, child_id):
+    '''
+    Delete child record from db and host object
+    :param db_conn: DB connection object
+    :param parent: Host object
+    :param child_id: host_id of child record
+    :return: host object
+    '''
+    sql = '''UPDATE apps SET children = ? WHERE id = ?'''
+    c = db_conn.cursor()
+    parent_id = db_fetch_hostid(db_conn, parent.name)
+    children = db_fetch_children(db_conn, parent_id)
+    children.remove(child_id)
+    c.execute(sql, ','.join(children), parent)
+    c.commit()
+    return db_read_host(db_conn, parent_id, parent.configuration)
+
+
 def db_delete_host(db_conn, host_id):
     '''
     Remove host record from db
@@ -147,6 +214,18 @@ def db_delete_host(db_conn, host_id):
     c.execute(sql_hosts, (host_id,))
     c.execute(sql_app, (host_id,))
     c.commit()
+
+
+def db_fetch_children(db_conn, host_id):
+    '''
+    Get children from host db for host_id
+    :param db_conn: DB connection object
+    :param host_id: list of host_ids for child servers
+    '''
+    select_sql = '''SELECT children FROM hosts WHERE id=?'''
+    c = db_conn.cursor()
+    c.execute(select_sql, (host_id,))
+    return c.fetchone()[0].split(',')
 
 
 def db_fetch_hostid(db_conn, hostname):
@@ -204,7 +283,8 @@ def db_read_host(db_conn, host_id, config):
     appList = []
     for row in rows:
         appList.append(row[0])
-    return Host(name, updater, appList, config)
+    children = db_fetch_children(db_conn, host_id)
+    return Host(name, updater, appList, config, children)
 
 
 def get_sudo():
