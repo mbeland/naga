@@ -6,7 +6,7 @@ from fabric import Connection, Config
 from invoke import exceptions
 from getpass import getpass
 from paramiko import ssh_exception
-import admin
+from backend import Host, db_read_host
 import argparse
 import re
 
@@ -324,7 +324,7 @@ def reboot(host, time='+1', halt=False):
     :param host: Host object
     :param time: Time in HH:MM format or integer minutes
     :param halt: Power off instead of reboot
-    :return: Formatted string
+    :return: List of formatted strings
     '''
     out = []
     if halt is True:
@@ -332,14 +332,23 @@ def reboot(host, time='+1', halt=False):
     else:
         flag = '-r'
     try:
-        out = f'{host.name} '
+        if host.children[0] != '0':
+            for child in host.children:
+                child_host = db_read_host('', child, host.configuration)
+                out.append(reboot(child_host, time, halt))
+            if re.search(r'^\+', time):
+                time = '+' + str(int(time[1:]) + 1)
+            else:
+                h, m = time.split(':')
+                time = h + ':' + str(int(m) + 1)
+        out1 = f'{host.name} '
         out2 = host.conn.sudo(f'/sbin/shutdown {flag} {time}',
                               hide=True).stderr.strip().split(',')[0]
-        out = out + out2
+        out.append(out1 + out2)
     except exceptions.UnexpectedExit as e:
-        out += (f' command failure: {e}')
+        out.append(f'{host.name}: command failure: {e}')
     except ssh_exception.NoValidConnectionsError as e:
-        out += (f' connection failed: {e}')
+        out.append(f'{host.name}: connection failed: {e}')
     return out
 
 
