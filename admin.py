@@ -335,7 +335,7 @@ def reboot(host, time='+1', halt=False):
         if host.children[0] != '0':
             for child in host.children:
                 child_host = db_read_host('', child, host.configuration)
-                out.append(reboot(child_host, time, halt))
+                out.append(reboot(child_host, time, halt=True))
             if re.search(r'^\+', time):
                 time = '+' + str(int(time[1:]) + 1)
             else:
