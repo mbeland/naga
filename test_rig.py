@@ -1,5 +1,4 @@
-from naga import *
-from admin import *
+from naga import db_fetch_hostlist, db_fetch_hostid, db_read_host, get_sudo
 
 
 def test():

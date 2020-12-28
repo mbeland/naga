@@ -7,6 +7,7 @@ from invoke import exceptions
 from getpass import getpass
 from paramiko import ssh_exception
 from backend import Host, db_read_host
+from pathlib import Path
 import argparse
 import re
 
@@ -365,6 +366,43 @@ def repo_list(conn, directory="~/repos/"):
         repos.extend(dirs)
     return repos
 
+
+def script(host, filename, sudo=False, dest=None, execute=True):
+    '''
+    Push specified file to hosts and exeecute
+    :param host: Host object
+    :param filename: local file to deploy
+    :param sudo: Execute with sudo, defaults to False
+    :param dest: Destination path, defaults to /tmp/
+    :param execute: Execute deployed file, defaults to True
+    :return: List of formatted strings
+    '''
+    out = []
+    out.append(f'Deploying to {host.name}...')
+    try:
+        p = Path(filename).expanduser()
+        filename = str(p).split('/')[-1]
+        if not p.is_file():
+            out.append(f'{p} is not a valid filename')
+            return out
+        if dest is not None:
+            d = Path(f'{dest}/{filename}')
+        else:
+            d = Path(f'/tmp/{filename}')
+            out.append(host.conn.put(p, str(d), preserve_mode=True))
+        if execute is True:
+            if sudo is True:
+                outlines = host.conn.sudo(str(d), hide=True).stdout.split('\n')
+            else:
+                outlines = host.conn.run(str(d), hide=True).stdout.split('\n')
+            for line in outlines:
+                out.append(f'{host.name}: {line}')
+        else:
+            out.append(f'{host.name}: Transfer complete.')
+    except Exception as e:
+        return(f'{host.name}: Transfer failed: {e}')
+    return out
+        
 
 def version_check(host):
     '''
