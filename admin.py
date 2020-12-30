@@ -396,11 +396,13 @@ def script(host, filename, sudo=False, dest=None, execute=True):
             else:
                 outlines = host.conn.run(str(d), hide=True).stdout.split('\n')
             for line in outlines:
+                if len(line) < 1:
+                    next
                 out.append(f'{host.name}: {line}')
         else:
             out.append(f'{host.name}: Transfer complete.')
     except Exception as e:
-        return(f'{host.name}: Transfer failed: {e}')
+        out.append(f'{host.name}: Transfer failed: {e}')
     return out
         
 
