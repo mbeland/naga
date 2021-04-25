@@ -4,6 +4,7 @@
 # Imports
 from fabric import Connection, Config
 from invoke import exceptions
+from cmd import Cmd
 from getpass import getpass
 from backend import Host, db_add_host, db_fetch_hostid, db_add_child,\
                     db_fetch_hostid, db_read_host, db_connector,\
@@ -12,6 +13,37 @@ import admin
 import argparse
 import re
 import os
+
+class NagaPrompt(Cmd):
+    intro = 'Welcome to the Naga shell. Type help or ? to list commands.\n'
+    prompt = 'naga> '
+    reboot_list = []
+    hosts = {}
+
+    def do_exit(self, inp):
+        '''Exit to system shell.'''
+        if len(self.reboot_list) > 0:
+            print(f'\n\nThe following hosts need to be rebooted:')
+            print_out(self.reboot_list)
+        print('Bye.')
+        return True
+
+    def do_list(self, inp):
+        '''List configured hosts in database'''
+        if len(self.hosts) == 0:
+            config, hosts = setup()
+            targets = {}
+            for host in hosts:
+                id = db_fetch_hostid('', host)
+                host = db_read_host('', id, config)
+                targets[host.name] = host
+            self.hosts = targets
+            self.do_list(inp)
+        else:
+            print("Configured hosts:")
+            for host in self.hosts:
+                print(host)
+
 
 def add_host(config=None):
     '''
@@ -32,12 +64,11 @@ def add_host(config=None):
         if appList[-1] == '':
             appList.remove('')
             flag = False
-    child = input("If this is a VM, what system hosts it? [Enter for None]"
-                  ).strip.lower()
+    child = input("If this is a VM, what system hosts it? [Enter for None]:")
     host = Host(name, updater, appList, config, [])
     new_id = db_add_host('', host)
-    if child != '':
-        host_id = db_fetch_hostid('', child)
+    if str(child) != '':
+        host_id = db_fetch_hostid('', str(child).strip.lower())
         db_add_child('', host_id, new_id)
     print(f'{host.name} added as host id {new_id}')
     return host
@@ -80,38 +111,37 @@ def run_host(host, config=None):
     return flag
 
 
-def main(argv):
-    parser = argparse.ArgumentParser()
-    parser.add_argument("host", help="Friendly name of system to target")
-    parser.add_argument("-db", "--database", type=str,
-                        help="SQLite3 db file to use [default=hosts.db")
-    parser.add_argument("-cmd", "--command", nargs=2,
-                        help="Function to execute on listed host(s)")
-    args = parser.parse_args()
-    reboot_list = []
-    if (args.database is None):
-        args.database = 'hosts.db'
-    os.environ['CONN'] = args.database
+def setup():
     config = get_sudo()
-    if args.host == "all":
-        hosts = db_fetch_hostlist('')
-    else:
-        hosts = [args.host]
-    for host in hosts:
-        if args.command:
-            host_id = db_fetch_hostid('', host)
-            host = db_read_host('', host_id, config)
-            host_func = getattr(admin, args.command[0],
-                                admin.version_check)
-            print_out(host_func(host, args.command[1]))
-            flag = False
-        else:
+    hosts = db_fetch_hostlist('')
+    return config, hosts
+
+
+def main(argv):
+    parser = argparse.ArgumentParser(description='Automated / interactive maintenance program.')
+    parser.add_argument("host", type=str, default="all",
+                        help="Hostname or \'all\'; \'shell\' for interactive mode")
+    parser.add_argument("-db", "--database", type=str, default="hosts.db",
+                        help="SQLite3 db file to use")
+    args = parser.parse_args()
+    os.environ['CONN'] = args.database
+    if args.host == "shell":
+        NagaPrompt().cmdloop()
+    elif args.host == "all":
+        reboot_list = []
+        config, hosts = setup()
+        for host in hosts:
             flag = run_host(host, config)
+            if flag is True:
+                reboot_list.append(f'\t{host}')
+        if len(reboot_list) > 0:
+            print(f'\n\nThe following hosts need to be rebooted:')
+            print_out(reboot_list)
+    else:
+        config = get_sudo()
+        flag = run_host(args.host, config)
         if flag is True:
-            reboot_list.append(f'\t{host}')
-    if len(reboot_list) > 0:
-        print(f'\n\nThe following hosts need to be rebooted:')
-        print_out(reboot_list)
+            print(f'\n\nHost {args.host} needs to be rebooted.')
     # Clean up
     del os.environ['CONN']
 
