@@ -11,14 +11,17 @@ from backend import Host, db_add_host, db_fetch_hostid, db_add_child,\
                     db_fetch_hostlist
 import admin
 import argparse
-import re
+import math
 import os
+import re
 
 class NagaPrompt(Cmd):
     intro = 'Welcome to the Naga shell. Type help or ? to list commands.\n'
     prompt = 'naga> '
     reboot_list = []
     hosts = {}
+    config = None
+
 
     def do_exit(self, inp):
         '''Exit to system shell.'''
@@ -28,21 +31,42 @@ class NagaPrompt(Cmd):
         print('Bye.')
         return True
 
+
+    def help_exit(self):
+        print("Exit the application. Shorthand: x q Ctrl-D.")
+
+
     def do_list(self, inp):
         '''List configured hosts in database'''
-        if len(self.hosts) == 0:
-            config, hosts = setup()
-            targets = {}
-            for host in hosts:
-                id = db_fetch_hostid('', host)
-                host = db_read_host('', id, config)
-                targets[host.name] = host
-            self.hosts = targets
-            self.do_list(inp)
+        print(f'Defined hosts:')
+        print_out(print_cols(db_fetch_hostlist('')))
+
+
+    def do_load(self, inp):
+        '''Load specified hosts from database - \'all\' for all'''
+        if self.config is None:
+            self.config = get_sudo()
+        if inp == 'all':
+            hosts = db_fetch_hostlist('')
         else:
-            print("Configured hosts:")
-            for host in self.hosts:
-                print(host)
+            hosts = str(inp).split(',')
+        for host in hosts:
+            id = db_fetch_hostid('', host)
+            host = db_read_host('', id, self.config)
+            self.hosts[host.name] = host
+        print("Loaded hosts:")
+        print_out(print_cols((list(self.hosts.keys()))))
+
+
+    def default(self, inp):
+        if inp == 'x' or inp == 'q':
+            return self.do_exit(inp)
+
+        print("Default: {}".format(inp))
+
+
+    do_EOF = do_exit
+    help_EOF = help_exit
 
 
 def add_host(config=None):
@@ -81,6 +105,26 @@ def get_sudo():
     '''
     return Config(overrides={'sudo': {'password':
                              getpass("What's your sudo password? ")}})
+
+
+def print_cols(list):
+    '''
+    Create a list of four 20-character column stringsfrom input strings
+    :param list: List of string objects
+    :return: List of formatted strings
+    '''
+    out = []
+    while len(list) > 0:
+        outstring = ''
+        if len(list) <= 4:
+            for i in range(0,len(list)):
+                outstring = outstring + str(list.pop(0)).rjust(20," ")
+            out.append(outstring)
+        else:
+            for j in range(0,4):
+                outstring = outstring + str(list.pop(0)).rjust(20," ")
+            out.append(outstring)
+    return out
 
 
 def print_out(list):
