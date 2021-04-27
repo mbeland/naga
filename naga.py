@@ -8,7 +8,7 @@ from cmd import Cmd
 from getpass import getpass
 from backend import Host, db_add_host, db_fetch_hostid, db_add_child,\
                     db_fetch_hostid, db_read_host, db_connector,\
-                    db_fetch_hostlist
+                    db_fetch_hostlist, db_fetch_children, db_delete_host
 import admin
 import argparse
 import math
@@ -23,17 +23,32 @@ class NagaPrompt(Cmd):
     config = None
 
 
+    def do_delete(self, inp):
+        '''Delete host entry from database'''
+        if str(inp).lower() not in db_fetch_hostlist(''):
+            print("Defined hosts:")
+            print_out(print_cols(db_fetch_hostlist('')))
+            inp = input("Delete which host: ")
+        id = db_fetch_hostid('', str(inp).lower())
+        if str(db_fetch_children('', id)[0]) != "0":
+            print("WARNING: selected host contains defined children")
+        print(f'Deleting host {inp}: Continue?')
+        ans = input("Type \'yes\' to confirm deletion: ")
+        if ans.strip() == "yes":
+            db_delete_host('', id)
+            print("Deleted. Defined hosts:")
+            print_out(print_cols(db_fetch_hostlist('')))
+        else:
+            print("Deletion aborted.")
+
+
     def do_exit(self, inp):
-        '''Exit to system shell.'''
+        '''Exit to system shell. Shorthand: x q'''
         if len(self.reboot_list) > 0:
             print(f'\n\nThe following hosts need to be rebooted:')
             print_out(self.reboot_list)
         print('Bye.')
         return True
-
-
-    def help_exit(self):
-        print("Exit the application. Shorthand: x q Ctrl-D.")
 
 
     def do_list(self, inp):
@@ -58,15 +73,21 @@ class NagaPrompt(Cmd):
         print_out(print_cols((list(self.hosts.keys()))))
 
 
+    def do_new(self, inp):
+        '''Create new host entry for the database'''
+        if self.config is None:
+            self.config = get_sudo()
+        host = add_host(self.config)
+        self.hosts[host.name] = host
+        print("Loaded hosts:")
+        print_out(print_cols((list(self.hosts.keys()))))
+
+
     def default(self, inp):
         if inp == 'x' or inp == 'q':
             return self.do_exit(inp)
 
         print("Default: {}".format(inp))
-
-
-    do_EOF = do_exit
-    help_EOF = help_exit
 
 
 def add_host(config=None):
@@ -92,7 +113,8 @@ def add_host(config=None):
     host = Host(name, updater, appList, config, [])
     new_id = db_add_host('', host)
     if str(child) != '':
-        host_id = db_fetch_hostid('', str(child).strip.lower())
+        host_id = db_fetch_hostid('', str(child).lower())
+        print(f'DEBUG: parent id: {host_id} child id: {new_id}')
         db_add_child('', host_id, new_id)
     print(f'{host.name} added as host id {new_id}')
     return host

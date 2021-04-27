@@ -95,7 +95,8 @@ def db_add_child(db, parent_id, child_id):
     if children[0] == '0':
         c.execute(update_sql, (child_id, parent_id))
     else:
-        children.append(child_id)
+        children.append(str(child_id))
+        print(f'DEBUG: children is {children}')
         children = ",".join(children)
         c.execute(update_sql, (children, parent_id))
     db.commit()
@@ -171,11 +172,10 @@ def db_delete_app(db, host, app_name):
     :param app_name: App function to remove
     :return: host object
     '''
-    sql = '''DELETE FROM apps WHERE id = ? AND function = ?'''
+    sql = '''DELETE FROM apps WHERE host = ? AND function = ?'''
     host_id = db_fetch_hostid('', host.name)
     c = db.cursor()
     c.execute(sql, (host_id, app_name))
-    c.commit()
     return db_read_host('', host_id, host.configuration)
 
 
@@ -188,13 +188,12 @@ def db_delete_child(db, parent, child_id):
     :param child_id: host_id of child record
     :return: host object
     '''
-    sql = '''UPDATE apps SET children = ? WHERE id = ?'''
+    sql = '''UPDATE hosts SET children = ? WHERE id = ?'''
     c = db.cursor()
     parent_id = db_fetch_hostid('', parent.name)
     children = db_fetch_children('', parent_id)
-    children.remove(child_id)
+    children.remove(str(child_id))
     c.execute(sql, ','.join(children), parent)
-    c.commit()
     return db_read_host('', parent_id, parent.configuration)
 
 
@@ -206,11 +205,10 @@ def db_delete_host(db, host_id):
     :param host_id: id of record to delete
     '''
     sql_hosts = '''DELETE FROM hosts WHERE id=?'''
-    sql_app = '''DELETE FROM apps WHERE id=?'''
+    sql_app = '''DELETE FROM apps WHERE host=?'''
     c = db.cursor()
     c.execute(sql_hosts, (host_id,))
     c.execute(sql_app, (host_id,))
-    c.commit()
 
 
 @db_connector
