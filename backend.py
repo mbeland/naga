@@ -77,7 +77,6 @@ def db_add_app(db, host_id, app):
     apps_sql = '''INSERT INTO apps(host,function) VALUES(?,?)'''
     c = db.cursor()
     c.execute(apps_sql, (host_id, app))
-    db.commit()
 
 
 @db_connector
@@ -96,10 +95,8 @@ def db_add_child(db, parent_id, child_id):
         c.execute(update_sql, (child_id, parent_id))
     else:
         children.append(str(child_id))
-        print(f'DEBUG: children is {children}')
         children = ",".join(children)
         c.execute(update_sql, (children, parent_id))
-    db.commit()
     return db_fetch_children('', parent_id)
 
 
@@ -120,7 +117,7 @@ def db_add_host(db, host):
     host_tuple = (host.name, host.updater, children)
     c.execute(host_sql, host_tuple)
     db.commit()
-    host_id = c.lastrowid
+    host_id = db_fetch_hostid('', host.name)
     for app in host.appList:
         db_add_app('', host_id, app)
     return host_id
@@ -164,37 +161,31 @@ def db_create_table(db, create_table_sql):
 
 
 @db_connector
-def db_delete_app(db, host, app_name):
+def db_delete_app(db, host_id, app_name):
     '''
     Remove app from db host record and Host object
     :param db: DB Connector (use db_connector func)
-    :param host_id: Host object
+    :param host_id: Host id from database
     :param app_name: App function to remove
-    :return: host object
     '''
     sql = '''DELETE FROM apps WHERE host = ? AND function = ?'''
-    host_id = db_fetch_hostid('', host.name)
     c = db.cursor()
     c.execute(sql, (host_id, app_name))
-    return db_read_host('', host_id, host.configuration)
 
 
 @db_connector
-def db_delete_child(db, parent, child_id):
+def db_delete_child(db, parent_id, child_id):
     '''
     Delete child record from db and host object
     :param db: DB Connector (use db_connector func)
     :param parent: Host object
     :param child_id: host_id of child record
-    :return: host object
     '''
     sql = '''UPDATE hosts SET children = ? WHERE id = ?'''
     c = db.cursor()
-    parent_id = db_fetch_hostid('', parent.name)
     children = db_fetch_children('', parent_id)
     children.remove(str(child_id))
-    c.execute(sql, ','.join(children), parent)
-    return db_read_host('', parent_id, parent.configuration)
+    c.execute(sql, ((','.join(children)), parent_id))
 
 
 @db_connector
@@ -210,6 +201,24 @@ def db_delete_host(db, host_id):
     c.execute(sql_hosts, (host_id,))
     c.execute(sql_app, (host_id,))
 
+
+@db_connector
+def db_fetch_apps(db, host_id):
+    '''
+    Get apps configured in db for host_id
+    :param db: DB Connector (use db_connector func)
+    :param host_id: host_id for host to query
+    :return: List of strings
+    '''
+    sql = '''SELECT function FROM apps WHERE host=?'''
+    appList = []
+    c = db.cursor()
+    c.execute(sql, (host_id,))
+    apps = c.fetchall()
+    for app in apps:
+        appList.append(app[0])
+    return appList
+    
 
 @db_connector
 def db_fetch_children(db, host_id):
@@ -257,6 +266,43 @@ def db_fetch_hostlist(db):
     for name in names:
         nameList.append(name[0])
     return nameList
+
+
+@db_connector
+def db_fetch_hostname(db, host_id):
+    '''
+    Read hostname for a given host_id from the db
+    :param db: DB Connector (use db_connector func)
+    :param host_id: host_id for host
+    :return: string hostname or None
+    '''
+    sql = '''SELECT name FROM hosts WHERE id=?'''
+    c = db.cursor()
+    c.execute(sql, (host_id,))
+    hostname = c.fetchone()
+    if hostname:
+        return hostname[0]
+    else:
+        return None
+
+
+@db_connector
+def db_fetch_parent_id(db, child_id):
+    '''
+    Return the host_id of the parent for a given child_id
+    :param db: DB Connector (use db_connector func)
+    :param child_id: host_id of child system
+    :return: host_id of parent system or False if none
+    '''
+    sql = '''SELECT id FROM hosts WHERE children LIKE ?'''
+    child_id = '%' + str(child_id) + '%'
+    c = db.cursor()
+    c.execute(sql, (child_id,))
+    host_id = c.fetchone()
+    if host_id:
+        return host_id[0]
+    else:
+        return None
 
 
 @db_connector

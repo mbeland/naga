@@ -6,9 +6,11 @@ from fabric import Connection, Config
 from invoke import exceptions
 from cmd import Cmd
 from getpass import getpass
-from backend import Host, db_add_host, db_fetch_hostid, db_add_child,\
+from backend import Host, db_add_app, db_add_host, db_fetch_hostid, db_add_child,\
                     db_fetch_hostid, db_read_host, db_connector,\
-                    db_fetch_hostlist, db_fetch_children, db_delete_host
+                    db_fetch_hostlist, db_fetch_children, db_delete_host,\
+                    db_fetch_parent_id, db_fetch_hostname, db_delete_child,\
+                    db_delete_app, db_fetch_apps
 import admin
 import argparse
 import math
@@ -23,23 +25,43 @@ class NagaPrompt(Cmd):
     config = None
 
 
+    def do_add_app(self, inp):
+        '''Add app to specified host in db and reload host'''
+        id = pick_host(inp, 'Host for new app? ')
+        app = str(input("New app function? ")).lower()
+        db_add_app('', id, app)
+        self.do_load(db_fetch_hostname('', id))
+
+
     def do_delete(self, inp):
         '''Delete host entry from database'''
-        if str(inp).lower() not in db_fetch_hostlist(''):
-            print("Defined hosts:")
-            print_out(print_cols(db_fetch_hostlist('')))
-            inp = input("Delete which host: ")
-        id = db_fetch_hostid('', str(inp).lower())
+        id = pick_host(inp, "Delete which host: ")
         if str(db_fetch_children('', id)[0]) != "0":
             print("WARNING: selected host contains defined children")
         print(f'Deleting host {inp}: Continue?')
         ans = input("Type \'yes\' to confirm deletion: ")
         if ans.strip() == "yes":
+            parent = db_fetch_parent_id('', id)
+            if parent:
+                db_delete_child('', parent, id)
             db_delete_host('', id)
             print("Deleted. Defined hosts:")
             print_out(print_cols(db_fetch_hostlist('')))
         else:
             print("Deletion aborted.")
+
+
+    def do_delete_app(self, inp):
+        '''Remove app from specified host in db and reload host'''
+        id = pick_host(inp, 'Host to modify? ')
+        apps = db_fetch_apps('', id)
+        hostname = db_fetch_hostname('', id)
+        print(f'Configured apps on {hostname}:')
+        print_out(print_cols(apps))
+        app = str(input(f'App to remove? ')).lower()
+        db_delete_app('', id, app)
+        print('Done.')
+        self.do_load(hostname)
 
 
     def do_exit(self, inp):
@@ -49,6 +71,17 @@ class NagaPrompt(Cmd):
             print_out(self.reboot_list)
         print('Bye.')
         return True
+
+
+    def do_fetch_parent(self, inp):
+        '''Fetch id of host parent from database'''
+        id = pick_host(inp, "Find parent of: ")
+        parent = db_fetch_parent_id('', id)
+        if parent is None:
+            print(f'{inp} is not a child host')
+        else:
+            parent = db_fetch_hostname('', parent)
+            print(f'{inp} is a child of {parent}')
 
 
     def do_list(self, inp):
@@ -66,7 +99,7 @@ class NagaPrompt(Cmd):
         else:
             hosts = str(inp).split(',')
         for host in hosts:
-            id = db_fetch_hostid('', host)
+            id = pick_host(host, f'{host} not found - load which host? ')
             host = db_read_host('', id, self.config)
             self.hosts[host.name] = host
         print("Loaded hosts:")
@@ -81,6 +114,22 @@ class NagaPrompt(Cmd):
         self.hosts[host.name] = host
         print("Loaded hosts:")
         print_out(print_cols((list(self.hosts.keys()))))
+
+
+    def do_reboot(self, inp):
+        '''Reboot specified hosts'''
+        id = pick_host(inp, "Reboot which host? ")
+        hostname = db_fetch_hostname('', id)
+        host = self.do_load(hostname)
+        flag = str(input(f'Shutdown {hostname}? (Y/N) [default=N]: ')).lower()
+        if flag == "y":
+            flag = True
+        else:
+            flag = False
+        time = input("Time to reboot? (+INT minutes delay or HH:MM) [Default: +1]: ")
+        if time == "":
+            time = '+1'
+        print_out(admin.reboot(self.hosts[hostname], time=time, halt=flag))
 
 
     def default(self, inp):
@@ -114,7 +163,6 @@ def add_host(config=None):
     new_id = db_add_host('', host)
     if str(child) != '':
         host_id = db_fetch_hostid('', str(child).lower())
-        print(f'DEBUG: parent id: {host_id} child id: {new_id}')
         db_add_child('', host_id, new_id)
     print(f'{host.name} added as host id {new_id}')
     return host
@@ -127,6 +175,20 @@ def get_sudo():
     '''
     return Config(overrides={'sudo': {'password':
                              getpass("What's your sudo password? ")}})
+
+
+def pick_host(inp, query):
+    '''
+    Select host from db list
+    :param inp: string of hostname
+    :param query: prompt for input string if no match
+    :return: Host_id of matching hostname
+    '''
+    if str(inp).lower() not in db_fetch_hostlist(''):
+        print("Defined hosts:")
+        print_out(print_cols(db_fetch_hostlist('')))
+        inp = input(query)
+    return db_fetch_hostid('', str(inp).lower())
 
 
 def print_cols(list):
