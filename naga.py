@@ -132,6 +132,14 @@ class NagaPrompt(Cmd):
         print_out(admin.reboot(self.hosts[hostname], time=time, halt=flag))
 
 
+    def do_run(self, inp):
+        '''Run update process for specified host'''
+        if self.config is None:
+            self.config = get_sudo()
+        id = pick_host(inp, "Run updates for which host?")
+        run_host(id, self.config)
+
+
     def default(self, inp):
         if inp == 'x' or inp == 'q':
             return self.do_exit(inp)
@@ -221,14 +229,13 @@ def print_out(list):
         print(line)
 
 
-def run_host(host, config=None):
+def run_host(host_id, config=None):
     '''
     Execute updater, host appList updaters, print output
     :param db_conn: db connection object
-    :param host: hostname
+    :param host_id: host_id from db
     :param config: Connection Configuration object
     '''
-    host_id = db_fetch_hostid('', host)
     host = db_read_host('', host_id, config)
     host_func = getattr(admin, host.updater, admin.version_check)
     host_out, flag = host_func(host)
@@ -259,7 +266,8 @@ def main(argv):
         reboot_list = []
         config, hosts = setup()
         for host in hosts:
-            flag = run_host(host, config)
+            host_id = db_fetch_hostid('', host)
+            flag = run_host(host_id, config)
             if flag is True:
                 reboot_list.append(f'\t{host}')
         if len(reboot_list) > 0:
@@ -267,9 +275,11 @@ def main(argv):
             print_out(reboot_list)
     else:
         config = get_sudo()
-        flag = run_host(args.host, config)
+        host_id = pick_host(args.host, "Which host? ")
+        flag = run_host(host_id, config)
         if flag is True:
-            print(f'\n\nHost {args.host} needs to be rebooted.')
+            hostname = db_fetch_hostname('', host_id)
+            print(f'\n\nHost {hostname} needs to be rebooted.')
     # Clean up
     del os.environ['CONN']
 

@@ -136,6 +136,9 @@ dmypy.json
 *.sublime-project
 *.sublime-workspace
 
+# VS Code project workspace files
+*.code-workspace
+
 # Multitool module folder
 multitool
 .vscode/settings.json
